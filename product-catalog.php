@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/config/db.php';
 
 $catalog  = null;
@@ -50,18 +50,12 @@ $pdfPath    = $catalog ? $catalog['pdf_path']                              : 'An
     <span class="loading-sub" id="load-sub"></span>
 </div>
 
-<<<<<<< HEAD
 <div id="book-clip">
-=======
->>>>>>> 2424eb8f801a281893c2fa64584ac4e6650ae8cb
 <div id="book-wrap">
     <div id="flipbook"></div>
     <div id="spine"></div>
 </div>
-<<<<<<< HEAD
 </div>
-=======
->>>>>>> 2424eb8f801a281893c2fa64584ac4e6650ae8cb
 
 <div id="controls">
     <button class="cbtn" id="b-first" title="First page">&#171;</button>
