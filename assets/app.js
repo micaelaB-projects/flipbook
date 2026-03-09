@@ -7,6 +7,44 @@ GlobalWorkerOptions.workerSrc =
 const PDF_PATH   = (window._CATALOG && window._CATALOG.pdfPath) || 'Andison Product Catalogue.pdf';
 const CATALOG_ID = (window._CATALOG && window._CATALOG.id)      || 0;
 
+/* ── Page image cache (localStorage) ────────────────────────────────────────
+   Rendered pages are stored per-catalog so re-opening is instant.
+   Old catalogs are purged automatically when a new catalog ID is detected. */
+var _CACHE_VER = 'ac_' + CATALOG_ID + '_v1_';
+
+function _cacheGet(n) {
+    try { return localStorage.getItem(_CACHE_VER + n); } catch(e) { return null; }
+}
+function _cacheSet(n, dataUrl) {
+    try { localStorage.setItem(_CACHE_VER + n, dataUrl); } catch(e) {}
+}
+function _cachePurgeOld() {
+    try {
+        var keys = Object.keys(localStorage);
+        keys.forEach(function(k) {
+            if (k.startsWith('ac_') && !k.startsWith(_CACHE_VER)) {
+                localStorage.removeItem(k);
+            }
+        });
+    } catch(e) {}
+}
+_cachePurgeOld();
+
+/* Save a rendered page image to the server so future visitors skip the PDF */
+function _savePageToServer(pageNum, total, dataUrl, pageW, pageH) {
+    if (!CATALOG_ID) return;
+    try {
+        var fd = new FormData();
+        fd.append('catalog_id', CATALOG_ID);
+        fd.append('page_num',   pageNum);
+        fd.append('total',      total);
+        fd.append('data',       dataUrl);
+        fd.append('page_w',     pageW);
+        fd.append('page_h',     pageH);
+        fetch('api/save-page.php', { method: 'POST', body: fd }).catch(function() {});
+    } catch(e) {}
+}
+
 /* ── Flip Sound ── */
 /* AudioContext creation + decodeAudioData do NOT need a user gesture.
    We start decoding immediately so the buffer is ready before first flip. */
@@ -43,7 +81,8 @@ function playFlipSound() {
 let book, total = 0;
 
 /* Render a single PDF page – renders at physical pixel resolution for sharpness */
-async function renderPage(pdf, n, renderScale) {
+async function renderPage(pdf, n, renderScale, quality) {
+    quality = quality || 0.82;
     const page = await pdf.getPage(n);
     const vp   = page.getViewport({ scale: renderScale });
     const cv   = document.createElement('canvas');
@@ -53,21 +92,40 @@ async function renderPage(pdf, n, renderScale) {
     ctx2d.fillStyle = '#ffffff';
     ctx2d.fillRect(0, 0, cv.width, cv.height);
     await page.render({ canvasContext: ctx2d, viewport: vp }).promise;
-    return cv.toDataURL('image/jpeg', 0.95);
+    return cv.toDataURL('image/jpeg', quality);
 }
 
 async function init() {
     try {
+        /* Shared layout variables — assigned in fast-path OR normal path below */
+        var pw, ph, ppw, pph, isNarrow, isMobile;
+        isNarrow = window.innerWidth < 600;
+        isMobile = isNarrow || ('ontouchstart' in window && window.innerWidth < 1024);
+
+        /* ── INSTANT PATH: server already has all pre-rendered page images ───────────
+           No PDF download, no browser rendering — just load JPEGs directly. */
+        var serverUrls = window._CATALOG && window._CATALOG.pageUrls;
+        var serverMeta = window._CATALOG && window._CATALOG.pageMeta;
+        if (serverUrls && serverUrls.length > 0 && serverMeta) {
+            total     = serverUrls.length;
+            ppw       = serverMeta.w;
+            pph       = serverMeta.h;
+            var _sw   = isNarrow ? window.innerWidth * 0.97 : Math.min(window.innerWidth * 0.97, 1500);
+            var _mh   = window.innerHeight * 0.84;
+            var _pf   = isNarrow ? _sw : _sw / 2;
+            pw = Math.round(Math.min(_pf, _mh * ppw / pph));
+            ph = Math.round(pw * pph / ppw);
+            launchFlipbook(serverUrls);
+            return;
+        }
+
+        /* ── NORMAL PATH: render from PDF (saves pages to server in background) ─ */
         const pdf = await getDocument(PDF_PATH).promise;
         total = pdf.numPages;
-
-        /* Single page on phones only; booklet/spread on tablets + laptops */
-        var isNarrow = window.innerWidth < 600;
 
         /* Calculate best render scale based on viewport */
         const firstPage = await pdf.getPage(1);
         const native    = firstPage.getViewport({ scale: 1 });
-        /* Spread = 2 pages wide (tablet/laptop); portrait = 1 page (phone) */
         var spreadW = isNarrow
             ? window.innerWidth * 0.97
             : Math.min(window.innerWidth * 0.97, 1500);
@@ -78,80 +136,140 @@ async function init() {
            renderScale  = physical pixel resolution (min 3× for sharp text)
            ppw/pph      = physical canvas size passed to StPageFlip
            pw/ph        = CSS display size — zoom on book-wrap scales ppw→pw  */
-        const dpr          = Math.min(window.devicePixelRatio || 1, 3);
+        const dpr          = Math.min(window.devicePixelRatio || 1, 2);
         const displayScale = Math.min(pageFit / native.width, maxH / native.height);
-        const renderScale  = Math.max(displayScale * dpr, 3);
+        const renderScale  = Math.max(displayScale * dpr, isMobile ? 1.5 : 2);
+        const jpegQuality  = isMobile ? 0.65 : 0.82;
 
-        const pw  = Math.round(native.width  * displayScale);  /* CSS display px */
-        const ph  = Math.round(native.height * displayScale);
-        const ppw = Math.round(native.width  * renderScale);   /* physical canvas px */
-        const pph = Math.round(native.height * renderScale);
+        pw  = Math.round(native.width  * displayScale);  /* CSS display px */
+        ph  = Math.round(native.height * displayScale);
+        ppw = Math.round(native.width  * renderScale);   /* physical canvas px */
+        pph = Math.round(native.height * renderScale);
 
-        /* Render every page */
-        const urls = [];
-        for (let i = 1; i <= total; i++) {
-            document.getElementById('load-sub').textContent =
-                'Page ' + i + ' of ' + total;
-            const url = await renderPage(pdf, i, renderScale);
-            urls.push(url);
+        /* ── Check if all pages are already cached → show instantly ── */
+        var _allCached = true;
+        var _cachedUrls = [];
+        for (var _ci = 1; _ci <= total; _ci++) {
+            var _hit = _cacheGet(_ci);
+            if (!_hit) { _allCached = false; break; }
+            _cachedUrls.push(_hit);
         }
 
-        /* Swap loading → flipbook */
-        document.getElementById('loading').style.display   = 'none';
-        document.getElementById('book-wrap').style.display = 'block';
+        /* placeholder transparent 1×1 for pages not yet rendered */
+        var PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEAAAAALAAAAAABAAEAAAI=';
 
-        /* Zoom #book-wrap so the ppw×pph physical canvas displays at pw×ph.
-           CSS zoom shrinks both the visual size AND the layout footprint,
-           so flex centering remains correct. The canvas renders at physical
-           screen pixels 1:1 — no browser upscaling, no blur. */
-        document.getElementById('book-wrap').style.zoom = String(pw / ppw);
+        /* ── Helper: launch flipbook with provided urls array ── */
+        function launchFlipbook(urls) {
+            document.getElementById('loading').style.display   = 'none';
+            document.getElementById('book-wrap').style.display = 'block';
+            document.getElementById('book-wrap').style.zoom    = String(pw / ppw);
 
-        /* Initialise StPageFlip with PHYSICAL pixel dimensions */
-        book = new St.PageFlip(document.getElementById('flipbook'), {
-            width:               ppw,
-            height:              pph,
-            size:                'fixed',
-            drawShadow:          true,
-            flippingTime:        800,
-            usePortrait:         isNarrow,
-            showCover:           true,
-            autoSize:            false,
-            maxShadowOpacity:    0.65,
-            mobileScrollSupport: false,
-            swipeDistance:       40,
-            clickEventForward:   true,
-        });
+            book = new St.PageFlip(document.getElementById('flipbook'), {
+                width:               ppw,
+                height:              pph,
+                size:                'fixed',
+                drawShadow:          true,
+                flippingTime:        800,
+                usePortrait:         isNarrow,
+                showCover:           true,
+                autoSize:            false,
+                maxShadowOpacity:    0.65,
+                mobileScrollSupport: false,
+                swipeDistance:       40,
+                clickEventForward:   true,
+            });
 
-        book.loadFromImages(urls);
-        book.on('flip', function(e) {
-            updateUI(e.data);
-            /* Record page view in the database (fire-and-forget) */
-            if (CATALOG_ID > 0) {
-                var fd = new FormData();
-                fd.append('action',      'view');
-                fd.append('catalog_id',  CATALOG_ID);
-                fd.append('page_number', e.data + 1);
-                fetch('api/catalog.php', { method: 'POST', body: fd }).catch(function() {});
+            book.loadFromImages(urls);
+            book.on('flip', function(e) {
+                updateUI(e.data);
+                if (CATALOG_ID > 0) {
+                    var fd = new FormData();
+                    fd.append('action',      'view');
+                    fd.append('catalog_id',  CATALOG_ID);
+                    fd.append('page_number', e.data + 1);
+                    fetch('api/catalog.php', { method: 'POST', body: fd }).catch(function() {});
+                }
+            });
+
+            if (!isNarrow) {
+                var spine = document.getElementById('spine');
+                spine.style.display = 'block';
+                spine.style.height  = '100%';
             }
-        });
+            if (!isNarrow) {
+                var clip = document.getElementById('book-clip');
+                clip.dataset.pw  = pw;
+                clip.dataset.ppw = ppw;
+            }
 
-        /* Show spine only in spread mode */
-        if (!isNarrow) {
-            var spine = document.getElementById('spine');
-            spine.style.display = 'block';
-            spine.style.height  = '100%'; /* fills the zoomed book-wrap */
+            document.getElementById('controls').style.display = 'flex';
+            updateUI(0);
+            _attachSoundTriggers();
         }
 
-        /* Cover clip: store both CSS and physical widths for updateUI */
-        if (!isNarrow) {
-            var clip = document.getElementById('book-clip');
-            clip.dataset.pw  = pw;   /* CSS display width — clip boundary */
-            clip.dataset.ppw = ppw;  /* physical width   — margin-left compensation */
+        if (_allCached) {
+            /* All pages cached — instant launch, no spinner at all */
+            launchFlipbook(_cachedUrls);
+            /* Server may be missing pages (e.g. browser closed mid-render on first visit).
+               Push any absent pages to the server silently in background. */
+            if (!window._CATALOG.pageUrls && CATALOG_ID > 0) {
+                (async function() {
+                    for (var _si = 1; _si <= total; _si++) {
+                        _savePageToServer(_si, total, _cachedUrls[_si - 1], ppw, pph);
+                        await new Promise(function(r) { setTimeout(r, 300); });
+                    }
+                }());
+            }
+            return; /* nothing more to do */
         }
 
-        document.getElementById('controls').style.display = 'flex';
-        updateUI(0);
-        _attachSoundTriggers();
+        /* ── Not fully cached: render page 1, launch immediately, stream rest ── */
+        var _p1cached = _cacheGet(1);
+        const firstUrl = _p1cached ? _p1cached : await renderPage(pdf, 1, renderScale, jpegQuality);
+        if (!_p1cached) {
+            _cacheSet(1, firstUrl);
+            _savePageToServer(1, total, firstUrl, ppw, pph);
+        }
+
+        /* Pre-fill urls array with placeholders so PageFlip knows total count */
+        var urls = [firstUrl];
+        for (var _pi = 2; _pi <= total; _pi++) {
+            urls.push(_cacheGet(_pi) || PLACEHOLDER);
+        }
+
+        /* Launch flipbook NOW — user can start reading page 1 */
+        launchFlipbook(urls);
+
+        /* Stream remaining pages in background, hot-swap into already-running book */
+        (async function () {
+            var BATCH = 6;
+            for (var i = 2; i <= total; i += BATCH) {
+                var end   = Math.min(i + BATCH - 1, total);
+                var batch = [];
+                var idxs  = [];
+                for (var j = i; j <= end; j++) {
+                    if (urls[j - 1] === PLACEHOLDER) {
+                        idxs.push(j);
+                        batch.push(renderPage(pdf, j, renderScale, jpegQuality));
+                    }
+                }
+                if (!batch.length) continue;
+                var results = await Promise.all(batch);
+                results.forEach(function(url, k) {
+                    var pn = idxs[k];
+                    _cacheSet(pn, url);
+                    _savePageToServer(pn, total, url, ppw, pph);
+                    urls[pn - 1] = url;
+                    /* Hot-swap placeholder with real image in PageFlip */
+                    try {
+                        var pages = book.getPageCollection ? book.getPageCollection().pages : null;
+                        if (pages && pages[pn - 1]) {
+                            pages[pn - 1].setImage(url);
+                        }
+                    } catch(e) {}
+                });
+            }
+        }());
 
     } catch (err) {
         var msg = err && err.message ? err.message : 'Unknown error';
