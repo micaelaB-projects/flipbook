@@ -10,9 +10,10 @@ const PDF_PATH   = (window._CATALOG && window._CATALOG.pdfPath) || 'Andison Prod
 const CATALOG_ID = (window._CATALOG && window._CATALOG.id)      || 0;
 
 /* ── Page image cache (localStorage) ────────────────────────────────────────
-   Rendered pages are stored per-catalog so re-opening is instant.
-   Old catalogs are purged automatically when a new catalog ID is detected. */
-var _CACHE_VER = 'ac_' + CATALOG_ID + '_v3_';
+   Cache key includes the PDF file's mtime so it auto-busts whenever the PDF
+   is replaced on disk — no manual version bumping ever needed. */
+var _PDF_VER   = (window._CATALOG && window._CATALOG.pdfVer) || '0';
+var _CACHE_VER = 'ac_' + CATALOG_ID + '_' + _PDF_VER + '_';
 
 function _cacheGet(n) {
     try { return localStorage.getItem(_CACHE_VER + n); } catch(e) { return null; }
@@ -126,6 +127,17 @@ async function init() {
         const { getDocument } = window['pdfjs-dist/build/pdf'];
         const pdf = await getDocument(PDF_PATH).promise;
         total = pdf.numPages;
+
+        /* If cached page count doesn't match the real PDF, wipe and re-render */
+        var _cachedTotal = parseInt(localStorage.getItem(_CACHE_VER + 'total') || '0', 10);
+        if (_cachedTotal && _cachedTotal !== total) {
+            try {
+                Object.keys(localStorage).forEach(function(k) {
+                    if (k.startsWith(_CACHE_VER)) localStorage.removeItem(k);
+                });
+            } catch(e) {}
+        }
+        try { localStorage.setItem(_CACHE_VER + 'total', total); } catch(e) {}
 
         const firstPage    = await pdf.getPage(1);
         const native       = firstPage.getViewport({ scale: 1 });

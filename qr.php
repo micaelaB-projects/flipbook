@@ -41,11 +41,11 @@ $qrLogoDataUri = file_exists($qrLogoFile)
             gap: 24px;
             font-family: 'Segoe UI', system-ui, sans-serif;
             color: #f0f0f0;
-            background-color: #0d1b2a;
+            background-color: #2B11DB;
             background-image:
                 repeating-linear-gradient(135deg, transparent, transparent 40px, rgba(255,255,255,0.012) 40px, rgba(255,255,255,0.012) 41px),
-                radial-gradient(ellipse 110% 55% at 50% -10%, rgba(41,98,178,0.55) 0%, rgba(15,40,80,0.4) 45%, transparent 70%),
-                linear-gradient(160deg, #0d1b2a 0%, #10243a 50%, #0a1520 100%);
+                radial-gradient(ellipse 110% 55% at 50% -10%, rgba(80,50,255,0.45) 0%, rgba(43,17,219,0.4) 45%, transparent 70%),
+                linear-gradient(160deg, #2B11DB 0%, #3318f0 50%, #2009c0 100%);
             padding: 32px 16px;
         }
         .logo-img {
@@ -189,74 +189,74 @@ $qrLogoDataUri = file_exists($qrLogoFile)
             card.height = CARD_H;
             var c = card.getContext('2d');
 
-            /* Navy gradient background */
+            /* Background gradient */
             var grad = c.createLinearGradient(0, 0, 0, CARD_H);
-            grad.addColorStop(0,   '#0f2033');
-            grad.addColorStop(1,   '#0a1520');
+            grad.addColorStop(0,   '#2B11DB');
+            grad.addColorStop(1,   '#2009c0');
             c.fillStyle = grad;
             c.fillRect(0, 0, CARD_W, CARD_H);
 
             /* Subtle top glow */
             var glow = c.createRadialGradient(CARD_W/2, 0, 0, CARD_W/2, 0, CARD_W * 0.7);
-            glow.addColorStop(0,   'rgba(41,98,178,0.45)');
-            glow.addColorStop(1,   'rgba(41,98,178,0)');
+            glow.addColorStop(0,   'rgba(80,50,255,0.45)');
+            glow.addColorStop(1,   'rgba(80,50,255,0)');
             c.fillStyle = glow;
             c.fillRect(0, 0, CARD_W, CARD_H);
 
-            /* Logo (white: draw navy rect, composite white via filter not available in canvas.
-               Instead draw logo normally — it's already white/inverted by CSS on webpage,
-               but the actual PNG is the blue version, so we tint it white via globalCompositeOperation) */
-            /* Draw logo tinted white: first draw it, then overlay white with 'source-atop' */
-            var offL = document.createElement('canvas');
-            offL.width  = Math.round(LOGO_W);
-            offL.height = LOGO_H;
-            var lc = offL.getContext('2d');
-            lc.drawImage(logo, 0, 0, Math.round(LOGO_W), LOGO_H);
-            lc.globalCompositeOperation = 'source-atop';
-            lc.fillStyle = '#ffffff';
-            lc.fillRect(0, 0, Math.round(LOGO_W), LOGO_H);
+            /* ── Top logo: logo.png tinted white ── */
+            var headerLogo = new Image();
+            headerLogo.onload = function () {
+                var hLogoW = headerLogo.naturalWidth * (LOGO_H / headerLogo.naturalHeight);
+                var offL = document.createElement('canvas');
+                offL.width  = Math.round(hLogoW);
+                offL.height = LOGO_H;
+                var lc = offL.getContext('2d');
+                lc.drawImage(headerLogo, 0, 0, Math.round(hLogoW), LOGO_H);
+                lc.globalCompositeOperation = 'source-atop';
+                lc.fillStyle = '#ffffff';
+                lc.fillRect(0, 0, Math.round(hLogoW), LOGO_H);
+                var lx = (CARD_W - Math.round(hLogoW)) / 2;
+                c.drawImage(offL, lx, PAD);
 
-            var lx = (CARD_W - Math.round(LOGO_W)) / 2;
-            c.drawImage(offL, lx, PAD);
+                /* Title text */
+                c.fillStyle = '#c8ddf8';
+                c.font      = 'bold 22px "Segoe UI", system-ui, sans-serif';
+                c.textAlign = 'center';
+                c.letterSpacing = '2px';
+                c.fillText('Scan to open the Product Catalog', CARD_W / 2, PAD + LOGO_H + 24 + 28);
 
-            /* Title text */
-            c.fillStyle = '#c8ddf8';
-            c.font      = 'bold 22px "Segoe UI", system-ui, sans-serif';
-            c.textAlign = 'center';
-            c.letterSpacing = '2px';
-            c.fillText('Scan to open the Flipbook', CARD_W / 2, PAD + LOGO_H + 24 + 28);
+                /* White QR box */
+                var qrBoxPad = 12;
+                var qrBoxX   = (CARD_W - QR_W) / 2 - qrBoxPad;
+                var qrBoxY   = QR_Y - qrBoxPad;
+                var qrBoxW   = QR_W + qrBoxPad * 2;
+                var qrBoxH   = QR_W + qrBoxPad * 2;
+                var r        = 16;
+                c.beginPath();
+                c.moveTo(qrBoxX + r, qrBoxY);
+                c.arcTo(qrBoxX + qrBoxW, qrBoxY,     qrBoxX + qrBoxW, qrBoxY + qrBoxH, r);
+                c.arcTo(qrBoxX + qrBoxW, qrBoxY + qrBoxH, qrBoxX,     qrBoxY + qrBoxH, r);
+                c.arcTo(qrBoxX,          qrBoxY + qrBoxH, qrBoxX,     qrBoxY,          r);
+                c.arcTo(qrBoxX,          qrBoxY,          qrBoxX + qrBoxW, qrBoxY,     r);
+                c.closePath();
+                c.fillStyle = '#ffffff';
+                c.fill();
 
-            /* White QR box */
-            var qrBoxPad = 12;
-            var qrBoxX   = (CARD_W - QR_W) / 2 - qrBoxPad;
-            var qrBoxY   = QR_Y - qrBoxPad;
-            var qrBoxW   = QR_W + qrBoxPad * 2;
-            var qrBoxH   = QR_W + qrBoxPad * 2;
-            var r        = 16;
-            c.beginPath();
-            c.moveTo(qrBoxX + r, qrBoxY);
-            c.arcTo(qrBoxX + qrBoxW, qrBoxY,     qrBoxX + qrBoxW, qrBoxY + qrBoxH, r);
-            c.arcTo(qrBoxX + qrBoxW, qrBoxY + qrBoxH, qrBoxX,     qrBoxY + qrBoxH, r);
-            c.arcTo(qrBoxX,          qrBoxY + qrBoxH, qrBoxX,     qrBoxY,          r);
-            c.arcTo(qrBoxX,          qrBoxY,          qrBoxX + qrBoxW, qrBoxY,     r);
-            c.closePath();
-            c.fillStyle = '#ffffff';
-            c.fill();
+                /* QR image */
+                var qrX = (CARD_W - QR_W) / 2;
+                c.drawImage(qrImg, qrX, QR_Y, QR_W, QR_W);
 
-            /* QR image */
-            var qrX = (CARD_W - QR_W) / 2;
-            c.drawImage(qrImg, qrX, QR_Y, QR_W, QR_W);
-
-            /* ── Overlay logo in centre of card's QR ── */
-            (function () {
-                /* andisonqr.jpg is 677×677 → square */
+                /* ── Overlay andisonqr.jpg in centre of QR ── */
                 var BADGE_H = Math.round(QR_W * 0.38);
-                var BADGE_W = BADGE_H; /* square */
-                var cx = CARD_W / 2, cy = QR_Y + QR_W / 2;
-                c.drawImage(logo, cx - BADGE_W / 2, cy - BADGE_H / 2, BADGE_W, BADGE_H);
-            }());
+                var BADGE_W = BADGE_H;
+                var cx2 = CARD_W / 2, cy2 = QR_Y + QR_W / 2;
+                c.drawImage(logo, cx2 - BADGE_W / 2, cy2 - BADGE_H / 2, BADGE_W, BADGE_H);
 
-            dlBtn.href = card.toDataURL('image/png');
+                dlBtn.href = card.toDataURL('image/png');
+            };
+            headerLogo.onerror = function () { dlBtn.href = cv.toDataURL('image/png'); };
+            headerLogo.src = LOGO_URI;
+
         };
         logo.onerror = function () {
             /* fallback: just use plain QR */
