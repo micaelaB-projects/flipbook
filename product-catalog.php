@@ -22,8 +22,9 @@ try {
 $catalogId  = $catalog ? (int)$catalog['id']                               : 0;
 $title      = $catalog ? htmlspecialchars($catalog['title'],       ENT_QUOTES, 'UTF-8') : '';
 $subtitle   = $catalog ? htmlspecialchars($catalog['description'], ENT_QUOTES, 'UTF-8') : '';
-$pdfPath    = $catalog ? $catalog['pdf_path']                              : 'Andison Product Catalogue.pdf';
-$pdfVer     = file_exists(__DIR__ . '/' . $pdfPath) ? filemtime(__DIR__ . '/' . $pdfPath) : 0;
+$rawPdfPath = $catalog ? $catalog['pdf_path']                              : 'Andison Product Catalogue.pdf';
+$pdfMtime   = file_exists(__DIR__ . '/' . $rawPdfPath) ? filemtime(__DIR__ . '/' . $rawPdfPath) : time();
+$pdfPath    = str_replace(' ', '%20', $rawPdfPath) . '?v=' . $pdfMtime;
 
 /* ── Build a scannable share URL for the QR code ────────────────────────────
    When accessed via localhost / 127.0.0.1, phones can't reach those addresses.
@@ -119,7 +120,6 @@ window._CATALOG = {
     id:       <?php echo json_encode($catalogId); ?>,
     title:    <?php echo json_encode($title); ?>,
     pdfPath:  <?php echo json_encode($pdfPath); ?>,
-    pdfVer:   <?php echo json_encode($pdfVer); ?>,
     shareUrl: <?php echo json_encode($shareUrl); ?>,
     pageUrls: <?php echo json_encode($pageUrls); ?>,
     pageMeta: <?php echo json_encode($pageMeta); ?>
