@@ -22,7 +22,9 @@ try {
 $catalogId  = $catalog ? (int)$catalog['id']                               : 0;
 $title      = $catalog ? htmlspecialchars($catalog['title'],       ENT_QUOTES, 'UTF-8') : '';
 $subtitle   = $catalog ? htmlspecialchars($catalog['description'], ENT_QUOTES, 'UTF-8') : '';
-$pdfPath    = $catalog ? $catalog['pdf_path']                              : 'Andison Product Catalogue.pdf';
+$rawPdfPath = $catalog ? $catalog['pdf_path']                              : 'Andison Product Catalogue.pdf';
+$pdfMtime   = file_exists(__DIR__ . '/' . $rawPdfPath) ? filemtime(__DIR__ . '/' . $rawPdfPath) : time();
+$pdfPath    = str_replace(' ', '%20', $rawPdfPath) . '?v=' . $pdfMtime;
 
 /* ── Build a scannable share URL for the QR code ────────────────────────────
    When accessed via localhost / 127.0.0.1, phones can't reach those addresses.
@@ -72,7 +74,6 @@ if ($catalogId > 0) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $title; ?></title>
     <link rel="stylesheet" href="assets/style.css">
-    <link rel="preload" href="<?php echo htmlspecialchars($pdfPath, ENT_QUOTES, 'UTF-8'); ?>" as="fetch" crossorigin="anonymous">
 </head>
 <body>
 
@@ -124,7 +125,7 @@ window._CATALOG = {
     pageMeta: <?php echo json_encode($pageMeta); ?>
 };
 </script>
-<script src="assets/app.js"></script>
+<script src="assets/app.js?v=<?php echo filemtime(__DIR__.'/assets/app.js'); ?>"></script>
 
 
 </body>
