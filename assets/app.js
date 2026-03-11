@@ -265,15 +265,24 @@ function updateUI(idx) {
         var pw  = parseInt(clip.dataset.pw,  10);
         var ppw = parseInt(clip.dataset.ppw, 10);
         if (idx === 0) {
-            clip.style.width      = pw + 'px';
-            clip.style.overflow   = 'hidden';
+            clip.style.width          = pw + 'px';
+            clip.style.overflow       = 'hidden';
+            clip.style.justifyContent = '';   /* keep center for cover (marginLeft handles position) */
             /* margin-left is in book-wrap's pre-zoom coordinate space:
                -ppw × zoom(pw/ppw) = -pw effective shift to hide blank left page */
             document.getElementById('book-wrap').style.marginLeft = '-' + ppw + 'px';
+        } else if (idx >= total - 1) {
+            /* Last page: content is on the left half — left-align the book so the
+               blank right half overflows (hidden) outside the clipped container. */
+            clip.style.width          = pw + 'px';
+            clip.style.overflow       = 'hidden';
+            clip.style.justifyContent = 'flex-start';
+            document.getElementById('book-wrap').style.marginLeft = '';
         } else {
-            clip.style.width      = '';
-            clip.style.overflow   = '';
-            clip.style.marginLeft = '';
+            clip.style.width          = '';
+            clip.style.overflow       = '';
+            clip.style.justifyContent = '';
+            clip.style.marginLeft     = '';
             document.getElementById('book-wrap').style.marginLeft = '';
         }
     }

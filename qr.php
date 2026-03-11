@@ -41,11 +41,11 @@ $qrLogoDataUri = file_exists($qrLogoFile)
             gap: 24px;
             font-family: 'Segoe UI', system-ui, sans-serif;
             color: #f0f0f0;
-            background-color: #0d1b2a;
+            background-color: #2B11DB;
             background-image:
                 repeating-linear-gradient(135deg, transparent, transparent 40px, rgba(255,255,255,0.012) 40px, rgba(255,255,255,0.012) 41px),
-                radial-gradient(ellipse 110% 55% at 50% -10%, rgba(41,98,178,0.55) 0%, rgba(15,40,80,0.4) 45%, transparent 70%),
-                linear-gradient(160deg, #0d1b2a 0%, #10243a 50%, #0a1520 100%);
+                radial-gradient(ellipse 110% 55% at 50% -10%, rgba(80,50,220,0.55) 0%, rgba(40,15,140,0.4) 45%, transparent 70%),
+                linear-gradient(160deg, #2B11DB 0%, #1e0fa3 50%, #180d80 100%);
             padding: 32px 16px;
         }
         .logo-img {
@@ -140,7 +140,7 @@ $qrLogoDataUri = file_exists($qrLogoFile)
     <p class="hint">Works on Android &amp; iOS &mdash; same Wi-Fi required</p>
     <p class="url-label" id="url-display"></p>
 
-    <a class="dl-btn" id="dl-btn" href="#" download="andison-flipbook-qr.png">&#8595; Download PNG</a>
+    <a class="dl-btn" id="dl-btn" href="#" download="andison-product_catalog-qr.png">&#8595; Download PNG</a>
 
 <script>
 (function () {
@@ -172,13 +172,31 @@ $qrLogoDataUri = file_exists($qrLogoFile)
         document.getElementById('qr-logo-badge').style.display = 'block';
 
         /* ── Build branded card for download ── */
-        var logo = new Image();
-        logo.onload = function () {
+        /* Step 1: load the site logo (PNG, has transparency → white-tinting trick works) */
+        var headerLogo = new Image();
+        headerLogo.onload = function () {
+            /* Step 2: load the QR centre badge (andisonqr.jpg) */
+            var badge = new Image();
+            badge.onload = function () {
+                buildCard(headerLogo, badge);
+            };
+            badge.onerror = function () {
+                /* badge missing — build card without centre badge */
+                buildCard(headerLogo, null);
+            };
+            badge.src = ANDISONQR_URI;
+        };
+        headerLogo.onerror = function () {
+            dlBtn.href = cv.toDataURL('image/png');
+        };
+        headerLogo.src = LOGO_URI;
+
+        function buildCard(headerLogo, badge) {
             /* Card dimensions */
             var CARD_W   = 520;
             var PAD      = 40;
             var LOGO_H   = 60;
-            var LOGO_W   = logo.naturalWidth * (LOGO_H / logo.naturalHeight);
+            var LOGO_W   = headerLogo.naturalWidth * (LOGO_H / headerLogo.naturalHeight);
             var TITLE_H  = 48;
             var QR_W     = 400;
             var QR_Y     = PAD + LOGO_H + 24 + TITLE_H + 20;
@@ -189,33 +207,29 @@ $qrLogoDataUri = file_exists($qrLogoFile)
             card.height = CARD_H;
             var c = card.getContext('2d');
 
-            /* Navy gradient background */
+            /* Purple-blue gradient background */
             var grad = c.createLinearGradient(0, 0, 0, CARD_H);
-            grad.addColorStop(0,   '#0f2033');
-            grad.addColorStop(1,   '#0a1520');
+            grad.addColorStop(0,   '#2B11DB');
+            grad.addColorStop(1,   '#180d80');
             c.fillStyle = grad;
             c.fillRect(0, 0, CARD_W, CARD_H);
 
             /* Subtle top glow */
             var glow = c.createRadialGradient(CARD_W/2, 0, 0, CARD_W/2, 0, CARD_W * 0.7);
-            glow.addColorStop(0,   'rgba(41,98,178,0.45)');
-            glow.addColorStop(1,   'rgba(41,98,178,0)');
+            glow.addColorStop(0,   'rgba(80,50,220,0.45)');
+            glow.addColorStop(1,   'rgba(80,50,220,0)');
             c.fillStyle = glow;
             c.fillRect(0, 0, CARD_W, CARD_H);
 
-            /* Logo (white: draw navy rect, composite white via filter not available in canvas.
-               Instead draw logo normally — it's already white/inverted by CSS on webpage,
-               but the actual PNG is the blue version, so we tint it white via globalCompositeOperation) */
-            /* Draw logo tinted white: first draw it, then overlay white with 'source-atop' */
+            /* Header logo — tinted white via source-atop (requires transparent PNG) */
             var offL = document.createElement('canvas');
             offL.width  = Math.round(LOGO_W);
             offL.height = LOGO_H;
             var lc = offL.getContext('2d');
-            lc.drawImage(logo, 0, 0, Math.round(LOGO_W), LOGO_H);
+            lc.drawImage(headerLogo, 0, 0, Math.round(LOGO_W), LOGO_H);
             lc.globalCompositeOperation = 'source-atop';
             lc.fillStyle = '#ffffff';
             lc.fillRect(0, 0, Math.round(LOGO_W), LOGO_H);
-
             var lx = (CARD_W - Math.round(LOGO_W)) / 2;
             c.drawImage(offL, lx, PAD);
 
@@ -224,9 +238,9 @@ $qrLogoDataUri = file_exists($qrLogoFile)
             c.font      = 'bold 22px "Segoe UI", system-ui, sans-serif';
             c.textAlign = 'center';
             c.letterSpacing = '2px';
-            c.fillText('Scan to open the Flipbook', CARD_W / 2, PAD + LOGO_H + 24 + 28);
+            c.fillText('Scan to open the Product Catalog', CARD_W / 2, PAD + LOGO_H + 24 + 28);
 
-            /* White QR box */
+            /* White rounded QR box */
             var qrBoxPad = 12;
             var qrBoxX   = (CARD_W - QR_W) / 2 - qrBoxPad;
             var qrBoxY   = QR_Y - qrBoxPad;
@@ -247,22 +261,21 @@ $qrLogoDataUri = file_exists($qrLogoFile)
             var qrX = (CARD_W - QR_W) / 2;
             c.drawImage(qrImg, qrX, QR_Y, QR_W, QR_W);
 
-            /* ── Overlay logo in centre of card's QR ── */
-            (function () {
-                /* andisonqr.jpg is 677×677 → square */
-                var BADGE_H = Math.round(QR_W * 0.38);
-                var BADGE_W = BADGE_H; /* square */
+            /* Centre badge (andisonqr.jpg) */
+            if (badge) {
+                var BADGE_H = Math.round(QR_W * 0.28);
+                var BADGE_W = BADGE_H;
                 var cx = CARD_W / 2, cy = QR_Y + QR_W / 2;
-                c.drawImage(logo, cx - BADGE_W / 2, cy - BADGE_H / 2, BADGE_W, BADGE_H);
-            }());
+                /* White backing box so badge is always legible */
+                var bpad = Math.round(BADGE_H * 0.08);
+                c.fillStyle = '#ffffff';
+                c.fillRect(cx - BADGE_W / 2 - bpad, cy - BADGE_H / 2 - bpad,
+                           BADGE_W + bpad * 2, BADGE_H + bpad * 2);
+                c.drawImage(badge, cx - BADGE_W / 2, cy - BADGE_H / 2, BADGE_W, BADGE_H);
+            }
 
             dlBtn.href = card.toDataURL('image/png');
-        };
-        logo.onerror = function () {
-            /* fallback: just use plain QR */
-            dlBtn.href = cv.toDataURL('image/png');
-        };
-        logo.src = ANDISONQR_URI;
+        }
     };
     qrImg.onerror = function () {
         ctx.fillStyle = '#f87171';

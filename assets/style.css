@@ -19,14 +19,14 @@
 #qr-backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(5, 10, 25, 0.82);
+    background: rgba(43, 17, 219, 0.82);
     backdrop-filter: blur(6px);
 }
 #qr-box {
     position: relative;
     z-index: 1;
-    background: linear-gradient(160deg, #0f2033 0%, #162e4a 100%);
-    border: 1px solid rgba(100, 170, 255, 0.25);
+    background: linear-gradient(160deg, #1e0fa3 0%, #2B11DB 100%);
+    border: 1px solid rgba(180, 160, 255, 0.25);
     border-radius: 18px;
     padding: 32px 36px;
     text-align: center;
@@ -70,7 +70,7 @@ body {
     overflow-x: hidden; /* prevent horizontal scroll from transform scaling */
 
     /* Rich layered background */
-    background-color: #0d1b2a;
+    background-color: #2B11DB;
     background-image:
         /* Subtle diagonal texture lines */
         repeating-linear-gradient(
@@ -82,15 +82,15 @@ body {
         ),
         /* Top spotlight glow */
         radial-gradient(ellipse 110% 55% at 50% -10%,
-            rgba(41, 98, 178, 0.55) 0%,
-            rgba(15, 40, 80, 0.4)   45%,
+            rgba(80, 50, 220, 0.55) 0%,
+            rgba(40, 15, 140, 0.4)  45%,
             transparent              70%),
         /* Bottom vignette */
         radial-gradient(ellipse 100% 60% at 50% 120%,
-            rgba(5, 10, 25, 0.8) 0%,
+            rgba(10, 5, 60, 0.8) 0%,
             transparent           60%),
-        /* Base deep navy */
-        linear-gradient(160deg, #0d1b2a 0%, #10243a 50%, #0a1520 100%);
+        /* Base purple-blue */
+        linear-gradient(160deg, #2B11DB 0%, #1e0fa3 50%, #180d80 100%);
 }
 
 /* ── Header ── */
